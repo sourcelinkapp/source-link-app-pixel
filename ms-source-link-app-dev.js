@@ -10,9 +10,8 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
 (function () {
   const CF_WRITE_FIRESTORE = cloudFunctionUrlWriteFirestore;
   const CF_UPDATE_FIRESTORE = cloudFunctionUrlUpdateFirestore;
-
-  const COOKIE_NAME = '__ms_source_info';
-  const PAGE_DOMAIN = location.hostname.replace('www.', '');
+  const COOKIE_NAME = '_source_link_data';
+  const PAGE_DOMAIN = location.hostname.replace('www.', '').toLocaleLowerCase();
 
   // Get client ID from script tag
   const scriptTag = document.currentScript;
@@ -24,6 +23,58 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
   }
 
   const CLIENT_ID = clientId.toUpperCase();
+  const SESSION_KEY = `_source_link_${CLIENT_ID}`;
+
+  // Function to validate client status
+  const validateClient = async () => {
+    // Check session storage first
+    const cachedStatus = sessionStorage.getItem(SESSION_KEY);
+    if (cachedStatus !== null) {
+      return cachedStatus === 'true';
+    }
+
+    // Create validation request data
+    const validationData = {
+      clientId: CLIENT_ID,
+      action: 'validate',
+    };
+
+    try {
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', CF_WRITE_FIRESTORE, true);
+        xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
+
+        xhr.onreadystatechange = () => {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              try {
+                const response = JSON.parse(xhr.responseText);
+                const isActive = response.success && response.isActive;
+                sessionStorage.setItem(SESSION_KEY, isActive.toString());
+                resolve(isActive);
+              } catch (error) {
+                console.error('Error parsing validation response:', error);
+                resolve(false);
+              }
+            } else {
+              resolve(false);
+            }
+          }
+        };
+
+        xhr.onerror = () => {
+          console.error('Error making validation request');
+          resolve(false);
+        };
+
+        xhr.send(JSON.stringify(validationData));
+      });
+    } catch (error) {
+      console.error('Error validating client:', error);
+      return false;
+    }
+  };
 
   const QUERY_PARAMS = [
     'utm_campaign',
@@ -63,7 +114,14 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
   };
 
   // Function to send HTTP request
-  const sendHttpRequest = (url, data, callback) => {
+  const sendHttpRequest = async (url, data, callback) => {
+    // Validate client before making any requests
+    const isActive = await validateClient();
+    if (!isActive) {
+      console.error('Client is not active');
+      return;
+    }
+
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
@@ -73,6 +131,12 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
         if (xhr.status === 200) {
           const response = JSON.parse(xhr.responseText);
           callback(response);
+        } else if (xhr.status === 403) {
+          console.warn(
+            `🚫 Source tracking disabled - Client ${CLIENT_ID} is inactive`,
+          );
+        } else {
+          console.warn(`⚠️ Source tracking error - Status: ${xhr.status}`);
         }
       }
     };
@@ -134,6 +198,7 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
       if (response && response.success) {
         const cookieData = {
           clientId: CLIENT_ID,
+          websiteId: PAGE_DOMAIN,
           visitorId: visitorId,
           referrer: data.sourceData[0].referrer,
           createdAt: Date.now(),
@@ -143,7 +208,7 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
           JSON.stringify(cookieData),
           new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000),
         );
-        console.log('Visit recorded and cookie set');
+        console.log('SourceLink data saved.');
       }
     });
   };
@@ -281,9 +346,22 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
     }
   };
 
-  // Call the function on page load
-  writeToCookie();
-  handleEmailInputs();
+  // Initialize the app
+  const init = async () => {
+    const isActive = await validateClient();
+    if (!isActive) {
+      console.warn(
+        `🚫 Source tracking disabled - Client ${CLIENT_ID} is inactive`,
+      );
+      return;
+    }
+
+    writeToCookie();
+    handleEmailInputs();
+  };
+
+  // Call init instead of direct function calls
+  init();
 })();
 
 /******/ })()
