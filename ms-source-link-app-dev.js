@@ -133,7 +133,7 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
           callback(response);
         } else if (xhr.status === 403) {
           console.warn(
-            `🚫 Source tracking disabled - Client ${CLIENT_ID} is inactive`,
+            `🚫 SourceLink disabled - Client ${CLIENT_ID} is inactive`,
           );
         } else {
           console.warn(`⚠️ Source tracking error - Status: ${xhr.status}`);
@@ -350,9 +350,7 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
   const init = async () => {
     const isActive = await validateClient();
     if (!isActive) {
-      console.warn(
-        `🚫 Source tracking disabled - Client ${CLIENT_ID} is inactive`,
-      );
+      console.warn(`🚫 SourceLink disabled - Client ${CLIENT_ID} is inactive`);
       return;
     }
 
