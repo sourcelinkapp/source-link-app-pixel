@@ -1,15 +1,13 @@
 /******/ (() => { // webpackBootstrap
 var __webpack_exports__ = {};
-// sourcelink.js...
+// src/sourcelink.js
 
-console.info('sourcelink.js loaded...');
+console.info('ms-source-link-app.js loaded...');
 
-const cloudFunctionUrlWriteFirestore = "https://asia-east2-ms-source-tracking-tool-dev.cloudfunctions.net/sourceTrackingToolDevWriteFirestore";
-const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-tool-dev.cloudfunctions.net/sourceTrackingToolDevUpdateFirestore";
+const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfunctions.net/sourceTrackingToolDevWriteFirestore";
 
 (function () {
-  const CF_WRITE_FIRESTORE = cloudFunctionUrlWriteFirestore;
-  const CF_UPDATE_FIRESTORE = cloudFunctionUrlUpdateFirestore;
+  const CF_URL = cloudFunctionUrl;
   const COOKIE_NAME = '_source_link_data';
   const PAGE_DOMAIN = location.hostname.replace('www.', '').toLocaleLowerCase();
 
@@ -37,39 +35,15 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
     const validationData = {
       clientId: CLIENT_ID,
       action: 'validate',
+      websiteId: PAGE_DOMAIN,
+      visitorId: 'validation_check', // Required by middleware but not used for validation
     };
 
     try {
-      return new Promise((resolve) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', CF_WRITE_FIRESTORE, true);
-        xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
-
-        xhr.onreadystatechange = () => {
-          if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-              try {
-                const response = JSON.parse(xhr.responseText);
-                const isActive = response.success && response.isActive;
-                sessionStorage.setItem(SESSION_KEY, isActive.toString());
-                resolve(isActive);
-              } catch (error) {
-                console.error('Error parsing validation response:', error);
-                resolve(false);
-              }
-            } else {
-              resolve(false);
-            }
-          }
-        };
-
-        xhr.onerror = () => {
-          console.error('Error making validation request');
-          resolve(false);
-        };
-
-        xhr.send(JSON.stringify(validationData));
-      });
+      const response = await sendHttpRequest(CF_URL, validationData);
+      const isActive = response.success && response.isActive;
+      sessionStorage.setItem(SESSION_KEY, isActive.toString());
+      return isActive;
     } catch (error) {
       console.error('Error validating client:', error);
       return false;
@@ -114,34 +88,32 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
   };
 
   // Function to send HTTP request
-  const sendHttpRequest = async (url, data, callback) => {
-    // Validate client before making any requests
-    const isActive = await validateClient();
-    if (!isActive) {
-      console.error('Client is not active');
-      return;
-    }
+  const sendHttpRequest = async (url, data) => {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json;charset=UTF-8',
+        },
+        body: JSON.stringify(data),
+      });
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', url, true);
-    xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
-
-    xhr.onreadystatechange = () => {
-      if (xhr.readyState === 4) {
-        if (xhr.status === 200) {
-          const response = JSON.parse(xhr.responseText);
-          callback(response);
-        } else if (xhr.status === 403) {
+      if (!response.ok) {
+        if (response.status === 403) {
           console.warn(
             `🚫 SourceLink disabled - Client ${CLIENT_ID} is inactive`,
           );
         } else {
-          console.warn(`⚠️ Source tracking error - Status: ${xhr.status}`);
+          console.warn(`⚠️ Source tracking error - Status: ${response.status}`);
         }
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
 
-    xhr.send(JSON.stringify(data));
+      return await response.json();
+    } catch (error) {
+      console.error('Error sending request:', error);
+      throw error;
+    }
   };
 
   // Function to set cookie
@@ -154,7 +126,6 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
     const cookieString = `${name}=${encodeURIComponent(
       value,
     )}; expires=${expires}; path=/; domain=${domain};`;
-
     document.cookie = cookieString;
   };
 
@@ -183,7 +154,7 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
   };
 
   // Function to write to Firestore
-  const writeFirestore = (data) => {
+  const writeFirestore = async (data) => {
     const visitorId = generateVisitorId();
 
     const firestoreData = {
@@ -194,8 +165,10 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
       sourceData: data.sourceData,
     };
 
-    sendHttpRequest(CF_WRITE_FIRESTORE, firestoreData, (response) => {
-      if (response && response.success) {
+    try {
+      const response = await sendHttpRequest(CF_URL, firestoreData);
+
+      if (response.success) {
         const cookieData = {
           clientId: CLIENT_ID,
           websiteId: PAGE_DOMAIN,
@@ -210,22 +183,26 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
         );
         console.log('SourceLink data saved.');
       }
-    });
+    } catch (error) {
+      console.error('Error writing to Firestore:', error);
+    }
   };
 
   // Function to update Firestore with new source
-  const updateFirestoreWithNewSource = (visitorId, newData) => {
+  const updateFirestoreWithNewSource = async (visitorId, newData) => {
     const updateData = {
       clientId: CLIENT_ID,
       websiteId: PAGE_DOMAIN,
       visitorId: visitorId,
-      updatedAt: Date.now(),
       sourceData: [newData],
     };
 
-    sendHttpRequest(CF_UPDATE_FIRESTORE, updateData, () => {
+    try {
+      await sendHttpRequest(CF_URL, updateData);
       console.log('Firestore updated successfully with new data.');
-    });
+    } catch (error) {
+      console.error('Error updating Firestore:', error);
+    }
   };
 
   // Function to handle cookie
@@ -294,7 +271,7 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
     );
 
     emailInputs.forEach((emailInput) => {
-      emailInput.addEventListener('blur', () => {
+      emailInput.addEventListener('blur', async () => {
         const email = emailInput.value.trim();
 
         if (email) {
@@ -314,7 +291,8 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
                   visitorId: visitorId,
                   email: email,
                 };
-                sendUpdateRequestToFirestore(data);
+                await sendHttpRequest(CF_URL, data);
+                console.log('Firestore updated successfully with email data.');
               }
             } catch (error) {
               console.error('Error processing cookie data:', error);
@@ -322,13 +300,6 @@ const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-t
           }
         }
       });
-    });
-  };
-
-  // Function to send update request to Firestore
-  const sendUpdateRequestToFirestore = (data) => {
-    sendHttpRequest(CF_UPDATE_FIRESTORE, data, () => {
-      console.log('Firestore updated successfully with email data.');
     });
   };
 
