@@ -2,53 +2,23 @@
 var __webpack_exports__ = {};
 // src/sourcelink.js
 
-console.info('ms-source-link-app.js loaded...');
+console.info('SourceLink initialized...');
 
 const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfunctions.net/sourceTrackingToolDevWriteFirestore";
 
 (function () {
+  // Action types matching backend
+  const ACTIONS = {
+    VALIDATE: 'validate',
+    CREATE_VISITOR: 'create_visitor',
+    UPDATE_SOURCE: 'update_source',
+    UPDATE_EMAIL: 'update_email',
+  };
+
+  // Constants
   const CF_URL = cloudFunctionUrl;
   const COOKIE_NAME = '_source_link_data';
   const PAGE_DOMAIN = location.hostname.replace('www.', '').toLocaleLowerCase();
-
-  // Get client ID from script tag
-  const scriptTag = document.currentScript;
-  const clientId = scriptTag.getAttribute('data-client-id');
-
-  if (!clientId) {
-    console.error('Client ID is required');
-    return;
-  }
-
-  const CLIENT_ID = clientId.toUpperCase();
-  const SESSION_KEY = `_source_link_${CLIENT_ID}`;
-
-  // Function to validate client status
-  const validateClient = async () => {
-    // Check session storage first
-    const cachedStatus = sessionStorage.getItem(SESSION_KEY);
-    if (cachedStatus !== null) {
-      return cachedStatus === 'true';
-    }
-
-    // Create validation request data
-    const validationData = {
-      clientId: CLIENT_ID,
-      action: 'validate',
-      websiteId: PAGE_DOMAIN,
-      visitorId: 'validation_check', // Required by middleware but not used for validation
-    };
-
-    try {
-      const response = await sendHttpRequest(CF_URL, validationData);
-      const isActive = response.success && response.isActive;
-      sessionStorage.setItem(SESSION_KEY, isActive.toString());
-      return isActive;
-    } catch (error) {
-      console.error('Error validating client:', error);
-      return false;
-    }
-  };
 
   const QUERY_PARAMS = [
     'utm_campaign',
@@ -70,7 +40,19 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
     'twclid',
   ];
 
-  // Get cookie by name
+  // Get client ID from script tag
+  const scriptTag = document.currentScript;
+  const clientId = scriptTag.getAttribute('data-client-id');
+
+  if (!clientId) {
+    console.error('Client ID is required');
+    return;
+  }
+
+  const CLIENT_ID = clientId.toUpperCase();
+  const SESSION_KEY = `_source_link_${CLIENT_ID}`;
+
+  // Utility Functions
   const getCookie = (name) => {
     const cookies = document.cookie.split(';');
     for (let i = 0; i < cookies.length; i++) {
@@ -82,12 +64,22 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
     return null;
   };
 
-  // Generate visitor ID
+  const setCookie = (name, value, expires) => {
+    let domain = location.hostname;
+    if (domain.split('.').length > 2) {
+      domain = '.' + domain;
+    }
+
+    const cookieString = `${name}=${encodeURIComponent(
+      value,
+    )}; expires=${expires}; path=/; domain=${domain};`;
+    document.cookie = cookieString;
+  };
+
   const generateVisitorId = () => {
     return 'v_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
   };
 
-  // Function to send HTTP request
   const sendHttpRequest = async (url, data) => {
     try {
       const response = await fetch(url, {
@@ -116,20 +108,6 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
     }
   };
 
-  // Function to set cookie
-  const setCookie = (name, value, expires) => {
-    let domain = location.hostname;
-    if (domain.split('.').length > 2) {
-      domain = '.' + domain;
-    }
-
-    const cookieString = `${name}=${encodeURIComponent(
-      value,
-    )}; expires=${expires}; path=/; domain=${domain};`;
-    document.cookie = cookieString;
-  };
-
-  // Function to extract query parameters
   const extractQueryParams = () => {
     const urlParams = new URLSearchParams(location.search);
     const queryParams = {};
@@ -141,23 +119,46 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
     return queryParams;
   };
 
-  // Function to check if referrer is internal
   const isInternalReferrer = (referrer) => {
     const currentDomain = document.location.hostname.replace('www.', '');
     return referrer.includes(currentDomain);
   };
 
-  // Function to get the last referrer
   const getLastReferrer = (referrerString) => {
     const referrers = referrerString.split('|');
     return referrers[referrers.length - 1];
   };
 
-  // Function to write to Firestore
+  // Core Functions
+  const validateClient = async () => {
+    const cachedStatus = sessionStorage.getItem(SESSION_KEY);
+    if (cachedStatus !== null) {
+      return cachedStatus === 'true';
+    }
+
+    const validationData = {
+      action: ACTIONS.VALIDATE,
+      clientId: CLIENT_ID,
+      websiteId: PAGE_DOMAIN,
+      visitorId: 'validation_check',
+    };
+
+    try {
+      const response = await sendHttpRequest(CF_URL, validationData);
+      const isActive = response.success && response.isActive;
+      sessionStorage.setItem(SESSION_KEY, isActive.toString());
+      return isActive;
+    } catch (error) {
+      console.error('Error validating client:', error);
+      return false;
+    }
+  };
+
   const writeFirestore = async (data) => {
     const visitorId = generateVisitorId();
 
     const firestoreData = {
+      action: ACTIONS.CREATE_VISITOR,
       clientId: CLIENT_ID,
       websiteId: PAGE_DOMAIN,
       visitorId: visitorId,
@@ -181,16 +182,16 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
           JSON.stringify(cookieData),
           new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000),
         );
-        console.log('SourceLink data saved.');
+        console.log('✅ SourceLink: Initial visit data saved');
       }
     } catch (error) {
       console.error('Error writing to Firestore:', error);
     }
   };
 
-  // Function to update Firestore with new source
   const updateFirestoreWithNewSource = async (visitorId, newData) => {
     const updateData = {
+      action: ACTIONS.UPDATE_SOURCE,
       clientId: CLIENT_ID,
       websiteId: PAGE_DOMAIN,
       visitorId: visitorId,
@@ -199,13 +200,51 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
 
     try {
       await sendHttpRequest(CF_URL, updateData);
-      console.log('Firestore updated successfully with new data.');
+      console.log('✅ SourceLink: Source data updated');
     } catch (error) {
-      console.error('Error updating Firestore:', error);
+      console.error('Error updating source data:', error);
     }
   };
 
-  // Function to handle cookie
+  const handleEmailInputs = () => {
+    const emailInputs = document.querySelectorAll(
+      'input[type="email"], input[name^="email"], input[name*="mail"]',
+    );
+
+    emailInputs.forEach((emailInput) => {
+      emailInput.addEventListener('blur', async () => {
+        const email = emailInput.value.trim();
+
+        if (email) {
+          const msSourceInfoCookie = getCookie(COOKIE_NAME);
+
+          if (msSourceInfoCookie) {
+            try {
+              const cookieData = JSON.parse(
+                decodeURIComponent(msSourceInfoCookie),
+              );
+              const visitorId = cookieData.visitorId;
+
+              if (visitorId) {
+                const data = {
+                  action: ACTIONS.UPDATE_EMAIL,
+                  clientId: CLIENT_ID,
+                  websiteId: PAGE_DOMAIN,
+                  visitorId: visitorId,
+                  email: email,
+                };
+                await sendHttpRequest(CF_URL, data);
+                console.log('✅ SourceLink: Email captured');
+              }
+            } catch (error) {
+              console.error('Error processing email update:', error);
+            }
+          }
+        }
+      });
+    });
+  };
+
   const handleCookie = (referrer) => {
     const queryParams = extractQueryParams();
 
@@ -223,7 +262,12 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
     writeFirestore(data);
   };
 
-  // Function to handle subsequent visit
+  const handleFirstVisit = (referrer) => {
+    const defaultReferrer =
+      referrer && referrer !== PAGE_DOMAIN ? referrer : 'direct';
+    handleCookie(defaultReferrer);
+  };
+
   const handleSubsequentVisit = (referrer) => {
     const msSourceInfoCookie = getCookie(COOKIE_NAME);
     const cookieData = JSON.parse(decodeURIComponent(msSourceInfoCookie));
@@ -257,53 +301,6 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
     }
   };
 
-  // Function to handle first visit
-  const handleFirstVisit = (referrer) => {
-    const defaultReferrer =
-      referrer && referrer !== PAGE_DOMAIN ? referrer : 'direct';
-    handleCookie(defaultReferrer);
-  };
-
-  // Function to handle email input and update Firestore
-  const handleEmailInputs = () => {
-    const emailInputs = document.querySelectorAll(
-      'input[type="email"], input[name^="email"], input[name*="mail"]',
-    );
-
-    emailInputs.forEach((emailInput) => {
-      emailInput.addEventListener('blur', async () => {
-        const email = emailInput.value.trim();
-
-        if (email) {
-          const msSourceInfoCookie = getCookie(COOKIE_NAME);
-
-          if (msSourceInfoCookie) {
-            try {
-              const cookieData = JSON.parse(
-                decodeURIComponent(msSourceInfoCookie),
-              );
-              const visitorId = cookieData.visitorId;
-
-              if (visitorId) {
-                const data = {
-                  clientId: CLIENT_ID,
-                  websiteId: PAGE_DOMAIN,
-                  visitorId: visitorId,
-                  email: email,
-                };
-                await sendHttpRequest(CF_URL, data);
-                console.log('Firestore updated successfully with email data.');
-              }
-            } catch (error) {
-              console.error('Error processing cookie data:', error);
-            }
-          }
-        }
-      });
-    });
-  };
-
-  // Function to write to Firestore and handle source information
   const writeToCookie = () => {
     const msSourceInfoCookie = getCookie(COOKIE_NAME);
     const referrer = document.referrer
@@ -329,7 +326,7 @@ const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfu
     handleEmailInputs();
   };
 
-  // Call init instead of direct function calls
+  // Start the application
   init();
 })();
 
