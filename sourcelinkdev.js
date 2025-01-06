@@ -1,8 +1,8 @@
 /******/ (() => { // webpackBootstrap
 var __webpack_exports__ = {};
-// ms-source-link-app.js
+// sourcelink.js...
 
-console.info('ms-source-link-app.js loaded...');
+console.info('sourcelink.js loaded...');
 
 const cloudFunctionUrlWriteFirestore = "https://asia-east2-ms-source-tracking-tool-dev.cloudfunctions.net/sourceTrackingToolDevWriteFirestore";
 const cloudFunctionUrlUpdateFirestore = "https://asia-east2-ms-source-tracking-tool-dev.cloudfunctions.net/sourceTrackingToolDevUpdateFirestore";
