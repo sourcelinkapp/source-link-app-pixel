@@ -4,7 +4,7 @@ var __webpack_exports__ = {};
 
 console.info('SourceLink initialized...');
 
-const cloudFunctionUrl = "https://asia-east2-ms-source-tracking-tool-dev.cloudfunctions.net/sourceTrackingToolDevWriteFirestore";
+const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunctions.net/sourceLinkWriteFirebase";
 
 (function () {
   // Action types matching backend
