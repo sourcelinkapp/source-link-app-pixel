@@ -40,28 +40,28 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
     'twclid',
   ];
 
-  // Get client ID from script tag
+  // Get pixel ID from script tag
   const scriptTag = document.currentScript;
   const scriptUrl = scriptTag.src;
 
   // Parse query string manually
-  const getClientId = (url) => {
+  const getPixelId = (url) => {
     const queryString = url.split('?')[1];
     if (!queryString) return null;
 
     const params = new URLSearchParams(queryString);
-    return params.get('clientId');
+    return params.get('pixelId');
   };
 
-  const clientId = getClientId(scriptUrl);
+  const pixelId = getPixelId(scriptUrl);
 
-  if (!clientId) {
+  if (!pixelId) {
     console.error('Pixel ID is required');
     return;
   }
 
-  const CLIENT_ID = clientId.toUpperCase();
-  const SESSION_KEY = `_source_link_${CLIENT_ID}`;
+  const PIXEL_ID = pixelId.toUpperCase();
+  const SESSION_KEY = `_source_link_${PIXEL_ID}`;
 
   // Utility Functions
   const getCookie = (name) => {
@@ -104,7 +104,7 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
       if (!response.ok) {
         if (response.status === 403) {
           console.warn(
-            `🚫 SourceLink disabled - Pixel ${CLIENT_ID} is inactive`,
+            `🚫 SourceLink disabled - Pixel ${PIXEL_ID} is inactive`,
           );
         } else {
           console.warn(`⚠️ Source tracking error - Status: ${response.status}`);
@@ -141,7 +141,7 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
   };
 
   // Core Functions
-  const validateClient = async () => {
+  const validatePixel = async () => {
     const cachedStatus = sessionStorage.getItem(SESSION_KEY);
     if (cachedStatus !== null) {
       return cachedStatus === 'true';
@@ -149,7 +149,7 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
 
     const validationData = {
       action: ACTIONS.VALIDATE,
-      clientId: CLIENT_ID,
+      pixelId: PIXEL_ID,
       websiteId: PAGE_DOMAIN,
       visitorId: 'validation_check',
     };
@@ -170,7 +170,7 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
 
     const firestoreData = {
       action: ACTIONS.CREATE_VISITOR,
-      clientId: CLIENT_ID,
+      pixelId: PIXEL_ID,
       websiteId: PAGE_DOMAIN,
       visitorId: visitorId,
       createdAt: Date.now(),
@@ -182,7 +182,7 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
 
       if (response.success) {
         const cookieData = {
-          clientId: CLIENT_ID,
+          pixelId: PIXEL_ID,
           websiteId: PAGE_DOMAIN,
           visitorId: visitorId,
           referrer: data.sourceData[0].referrer,
@@ -203,7 +203,7 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
   const updateFirestoreWithNewSource = async (visitorId, newData) => {
     const updateData = {
       action: ACTIONS.UPDATE_SOURCE,
-      clientId: CLIENT_ID,
+      pixelId: PIXEL_ID,
       websiteId: PAGE_DOMAIN,
       visitorId: visitorId,
       sourceData: [newData],
@@ -239,7 +239,7 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
               if (visitorId) {
                 const data = {
                   action: ACTIONS.UPDATE_EMAIL,
-                  clientId: CLIENT_ID,
+                  pixelId: PIXEL_ID,
                   websiteId: PAGE_DOMAIN,
                   visitorId: visitorId,
                   email: email,
@@ -327,9 +327,9 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
 
   // Initialize the app
   const init = async () => {
-    const isActive = await validateClient();
+    const isActive = await validatePixel();
     if (!isActive) {
-      console.warn(`🚫 SourceLink disabled - Pixel ${CLIENT_ID} is inactive`);
+      console.warn(`🚫 SourceLink disabled - Pixel ${PIXEL_ID} is inactive`);
       return;
     }
 
