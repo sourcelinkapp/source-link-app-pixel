@@ -5,6 +5,7 @@ var __webpack_exports__ = {};
 console.info('SourceLink initialized...');
 
 const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunctions.net/sourceLinkWriteFirebase";
+const pixelVersion = "1.4.5";
 
 (function () {
   // Action types matching backend
@@ -61,7 +62,8 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
   }
 
   const PIXEL_ID = pixelId.toUpperCase();
-  const SESSION_KEY = `_source_link_${PIXEL_ID}`;
+  const PIXEL_VERSION = pixelVersion;
+  const SESSION_KEY = `_source_link_${PIXEL_ID}_PIXEL_VERSION_${PIXEL_VERSION}`;
 
   // Utility Functions
   const getCookie = (name) => {
