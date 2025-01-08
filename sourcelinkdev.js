@@ -217,6 +217,16 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
     }
   };
 
+  const validateEmail = (email) => {
+    // Basic email validation regex that checks for:
+    // - At least one character before @
+    // - @ symbol
+    // - At least one character after @ (domain name)
+    // - At least one dot after @ with characters on both sides
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleEmailInputs = () => {
     const emailInputs = document.querySelectorAll(
       'input[type="email"], input[name^="email"], input[name*="mail"]',
@@ -226,7 +236,8 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
       emailInput.addEventListener('blur', async () => {
         const email = emailInput.value.trim();
 
-        if (email) {
+        if (email && validateEmail(email)) {
+          // Only proceed if email is valid
           const msSourceInfoCookie = getCookie(COOKIE_NAME);
 
           if (msSourceInfoCookie) {
@@ -251,6 +262,8 @@ const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunc
               console.error('Error processing email update:', error);
             }
           }
+        } else if (email && !validateEmail(email)) {
+          console.log('❌ SourceLink: Invalid email format');
         }
       });
     });
