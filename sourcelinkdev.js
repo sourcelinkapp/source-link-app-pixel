@@ -63,7 +63,7 @@ const pixelVersion = "1.4.5";
 
   const PIXEL_ID = pixelId.toUpperCase();
   const PIXEL_VERSION = pixelVersion;
-  const SESSION_KEY = `_source_link_${PIXEL_ID}_PIXEL_VERSION_${PIXEL_VERSION}`;
+  const SESSION_KEY = `SOURCE_LINK_${PIXEL_VERSION}_${PIXEL_ID}`;
 
   // Utility Functions
   const getCookie = (name) => {
