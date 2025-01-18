@@ -1,11 +1,10 @@
 /******/ (() => { // webpackBootstrap
-var __webpack_exports__ = {};
 // src/sourcelink.js
 
 console.info('SourceLink initialized...');
 
-const cloudFunctionUrl = "https://us-west1-ms-source-tracking-tool-dev.cloudfunctions.net/sourceLinkWriteFirebase";
-const pixelVersion = "1.4.5";
+const cloudFunctionUrl = "https://px.sourcelink.app/sourcelink-data";
+const pixelVersion = "1.4.6";
 
 (function () {
   // Action types matching backend
